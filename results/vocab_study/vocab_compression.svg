@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif;fill:#172033}.grid{stroke:#dce2ea;stroke-width:1}.axis{stroke:#172033;stroke-width:1.5}.bytes{stroke:#1769aa;fill:none;stroke-width:3}.chars{stroke:#d1495b;fill:none;stroke-width:3}</style>
+<text x="450.0" y="30" text-anchor="middle" font-size="20" font-weight="bold">BPE vocabulary size vs compression</text>
+<line class="grid" x1="90" y1="480.00" x2="860" y2="480.00"/>
+<text x="78" y="485.00" text-anchor="end" font-size="13">0.00</text>
+<line class="grid" x1="90" y1="395.00" x2="860" y2="395.00"/>
+<text x="78" y="400.00" text-anchor="end" font-size="13">0.93</text>
+<line class="grid" x1="90" y1="310.00" x2="860" y2="310.00"/>
+<text x="78" y="315.00" text-anchor="end" font-size="13">1.85</text>
+<line class="grid" x1="90" y1="225.00" x2="860" y2="225.00"/>
+<text x="78" y="230.00" text-anchor="end" font-size="13">2.78</text>
+<line class="grid" x1="90" y1="140.00" x2="860" y2="140.00"/>
+<text x="78" y="145.00" text-anchor="end" font-size="13">3.70</text>
+<line class="grid" x1="90" y1="55.00" x2="860" y2="55.00"/>
+<text x="78" y="60.00" text-anchor="end" font-size="13">4.63</text>
+<line class="grid" x1="90.00" y1="55" x2="90.00" y2="480"/>
+<text x="90.00" y="508" text-anchor="middle" font-size="13">1,000</text>
+<line class="grid" x1="141.33" y1="55" x2="141.33" y2="480"/>
+<text x="141.33" y="508" text-anchor="middle" font-size="13">2,000</text>
+<line class="grid" x1="244.00" y1="55" x2="244.00" y2="480"/>
+<text x="244.00" y="508" text-anchor="middle" font-size="13">4,000</text>
+<line class="grid" x1="449.33" y1="55" x2="449.33" y2="480"/>
+<text x="449.33" y="508" text-anchor="middle" font-size="13">8,000</text>
+<line class="grid" x1="860.00" y1="55" x2="860.00" y2="480"/>
+<text x="860.00" y="508" text-anchor="middle" font-size="13">16,000</text>
+<line class="axis" x1="90" y1="480" x2="860" y2="480"/>
+<line class="axis" x1="90" y1="55" x2="90" y2="480"/>
+<text x="475.0" y="538" text-anchor="middle" font-size="15">Vocabulary size</text>
+<text x="24" y="267.5" text-anchor="middle" font-size="15" transform="rotate(-90 24 267.5)">Compression ratio</text>
+<polyline class="bytes" points="90.00,188.60 141.33,141.70 244.00,113.97 449.33,102.44 860.00,100.54"/>
+<circle cx="90.00" cy="188.60" r="4.5" fill="#1769aa"/>
+<circle cx="141.33" cy="141.70" r="4.5" fill="#1769aa"/>
+<circle cx="244.00" cy="113.97" r="4.5" fill="#1769aa"/>
+<circle cx="449.33" cy="102.44" r="4.5" fill="#1769aa"/>
+<circle cx="860.00" cy="100.54" r="4.5" fill="#1769aa"/>
+<polyline class="chars" points="90.00,188.72 141.33,141.84 244.00,114.12 449.33,102.60 860.00,100.69"/>
+<circle cx="90.00" cy="188.72" r="4.5" fill="#d1495b"/>
+<circle cx="141.33" cy="141.84" r="4.5" fill="#d1495b"/>
+<circle cx="244.00" cy="114.12" r="4.5" fill="#d1495b"/>
+<circle cx="449.33" cy="102.60" r="4.5" fill="#d1495b"/>
+<circle cx="860.00" cy="100.69" r="4.5" fill="#d1495b"/>
+<line class="bytes" x1="108" y1="73" x2="144" y2="73"/>
+<text x="153" y="78" font-size="14">Bytes per token</text>
+<line class="chars" x1="283" y1="73" x2="319" y2="73"/>
+<text x="328" y="78" font-size="14">Characters per token</text>
+</svg>
