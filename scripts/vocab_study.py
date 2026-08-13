@@ -7,7 +7,7 @@ file, and measure the compression ratio for each.
 Note that you can track the corpus token count incrementally during training almost for free — every
 merge reduces it by exactly the count of the merged pair.
 
-must produce curve and probably a csv 
+must produce curve and a csv 
 
 """
 
@@ -24,7 +24,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.tokenizer import (BPETokenizer,save_merges,save_vocab,train_bpe,)
-
 
 EOT = "<|endoftext|>"
 DEFAULT_VOCAB_SIZES = (1_000, 2_000, 4_000, 8_000, 16_000)
@@ -70,7 +69,7 @@ def tokenizer_paths(output_dir: Path, vocab_size: int):
     return tokenizer_dir / "vocab.tsv", tokenizer_dir / "merges.tsv" #saves
 
 def display_path(path: Path):
-    #Prefer a project relative artifact path, otherwise use its full path 
+    #Prefer a project relative artifact path otherwise use its full path 
     try:
         return str(path.relative_to(PROJECT_ROOT))
     except ValueError:
@@ -84,12 +83,12 @@ def train_and_measure(corpus_path: Path,corpus_text: str,document_count: int,req
 
     train_started = time.perf_counter()
     vocab, merges = train_bpe(str(corpus_path),requested_vocab_size,[EOT],)
-    training_seconds = time.perf_counter() - train_started
+    training_seconds = time.perf_counter()-train_started
 
     tokenizer = BPETokenizer(vocab, merges, [EOT])
     encode_started = time.perf_counter()
     token_ids = tokenizer.encode(corpus_text)
-    encoding_seconds = time.perf_counter() - encode_started
+    encoding_seconds = time.perf_counter() -encode_started
 
     if not token_ids:
         raise RuntimeError("The study corpus encoded to zero tokens")
@@ -100,9 +99,133 @@ def train_and_measure(corpus_path: Path,corpus_text: str,document_count: int,req
     save_merges(merges, str(merges_path))
 
     byte_count = len(corpus_text.encode("utf-8"))
-    character_count = len(corpus_text)
+    character_count= len(corpus_text)
     token_count = len(token_ids)
 
-    return {"requested_vocab_size": requested_vocab_size,"actual_vocab_size": len(vocab),"merge_count": len(merges),"document_count": document_count,"character_count": character_count,"byte_count": byte_count,"token_count": token_count,"bytes_per_token": byte_count / token_count,"characters_per_token": character_count / token_count,"training_seconds": training_seconds,"encoding_seconds": encoding_seconds,"embedding_parameters": len(vocab) * d_model,"lm_head_parameters": len(vocab) * d_model,"vocab_dependent_parameters": 2 * len(vocab) * d_model,"vocab_path": display_path(vocab_path),"merges_path": display_path(merges_path),}
+    return {"requested_vocab_size": requested_vocab_size,"actual_vocab_size":len(vocab),"merge_count": len(merges),"document_count": document_count,"character_count": character_count,"byte_count": byte_count,"token_count": token_count,"bytes_per_token": byte_count / token_count,"characters_per_token": character_count / token_count,"training_seconds": training_seconds,"encoding_seconds": encoding_seconds,"embedding_parameters": len(vocab) * d_model,"lm_head_parameters": len(vocab) * d_model,"vocab_dependent_parameters": 2 * len(vocab) * d_model,"vocab_path": display_path(vocab_path),"merges_path": display_path(merges_path),}
 
 
+def save_csv(rows: list[dict[str, int | float|str]], path: Path):
+    path.parent.mkdir(parents=True, exist_ok= True)
+    with path.open("w", encoding ="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+def save_svg_plot(rows: list[dict[str, int | float | str]],path: Path,):
+    # make compression plot as an SVG file
+    width, height = 900, 560
+    left, right, top, bottom = 90, 40, 55, 80
+    plot_width = width-left- right
+    plot_height = height-top-bottom
+
+    x_values = [int(row["requested_vocab_size"]) for row in rows]
+    byte_values = [float(row["bytes_per_token"]) for row in rows]
+    char_values = [float(row["characters_per_token"]) for row in rows]
+    x_min, x_max = min(x_values), max(x_values)
+    y_min = 0.0
+    y_max = max(byte_values + char_values) * 1.12
+
+    def x_position(value: float):
+        if x_max == x_min:
+            return left + plot_width / 2
+        return left + (value - x_min) / (x_max - x_min) * plot_width
+
+    def y_position(value: float):
+        return top + plot_height - (value - y_min) / (y_max - y_min) * plot_height
+    #plot
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">', # add name space id for xml
+        '<rect width="100%" height="100%" fill="white"/>',
+        '<style>text{font-family:Arial,sans-serif;fill:#172033}.grid{stroke:#dce2ea;stroke-width:1}.axis{stroke:#172033;stroke-width:1.5}.bytes{stroke:#1769aa;fill:none;stroke-width:3}.chars{stroke:#d1495b;fill:none;stroke-width:3}</style>',
+        f'<text x="{width / 2}" y="30" text-anchor="middle" font-size="20" font-weight="bold">BPE vocabulary size vs compression</text>',
+    ]
+
+    for tick in range(6):
+        value = y_max * tick / 5
+        y = y_position(value)
+        parts.append(f'<line class="grid" x1="{left}" y1="{y:.2f}" x2="{left + plot_width}" y2="{y:.2f}"/>')
+        parts.append(f'<text x="{left - 12}" y="{y + 5:.2f}" text-anchor="end" font-size="13">{value:.2f}</text>')
+
+    for value in x_values:
+        x = x_position(value)
+        parts.append(f'<line class="grid" x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + plot_height}"/>')
+        parts.append(f'<text x="{x:.2f}" y="{top + plot_height + 28}" text-anchor="middle" font-size="13">{value:,}</text>')
+
+    parts.extend(
+        [
+            f'<line class="axis" x1="{left}" y1="{top + plot_height}" x2="{left + plot_width}" y2="{top + plot_height}"/>',
+            f'<line class="axis" x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_height}"/>',
+            f'<text x="{left + plot_width / 2}" y="{height - 22}" text-anchor="middle" font-size="15">Vocabulary size</text>',
+            f'<text x="24" y="{top + plot_height / 2}" text-anchor="middle" font-size="15" transform="rotate(-90 24 {top + plot_height / 2})">Compression ratio</text>',
+        ]
+    )
+
+    for values, css_class, colour in ((byte_values, "bytes", "#1769aa"),(char_values, "chars", "#d1495b"),):
+        points = " ".join(f"{x_position(x):.2f},{y_position(y):.2f}" for x, y in zip(x_values, values))
+        parts.append(f'<polyline class="{css_class}" points="{points}"/>')
+        for x, y in zip(x_values, values):
+            parts.append(f'<circle cx="{x_position(x):.2f}" cy="{y_position(y):.2f}" r="4.5" fill="{colour}"/>')
+
+    legend_x = left + 18
+    parts.extend(
+        [
+            f'<line class="bytes" x1="{legend_x}" y1="{top + 18}" x2="{legend_x + 36}" y2="{top + 18}"/>',
+            f'<text x="{legend_x + 45}" y="{top + 23}" font-size="14">Bytes per token</text>',
+            f'<line class="chars" x1="{legend_x + 175}" y1="{top + 18}" x2="{legend_x + 211}" y2="{top + 18}"/>',
+            f'<text x="{legend_x + 220}" y="{top + 23}" font-size="14">Characters per token</text>',
+            "</svg>",
+        ]
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+
+# pint th results 
+def print_result(row: dict[str, int | float | str]):
+    print(
+        f"vocab={int(row['requested_vocab_size']):>5,}  "
+        f"tokens={int(row['token_count']):>10,}  "
+        f"bytes/token={float(row['bytes_per_token']):.4f}  "
+        f"chars/token={float(row['characters_per_token']):.4f}  "
+        f"vocab-params={int(row['vocab_dependent_parameters']):>10,}  "
+        f"train={float(row['training_seconds']):.2f}s  "
+        f"encode={float(row['encoding_seconds']):.2f}s"
+    )
+
+def main():
+    args = parse_args()
+    vocab_sizes = sorted(set(args.vocab_sizes))
+    output_dir = args.output_dir.resolve()
+    if args.d_model <= 0:
+        raise ValueError("d_model must be positive")
+
+    corpus_text, document_count = load_study_corpus(args.input.resolve(),args.reserved_test_documents,args.max_documents,)
+    print(f"Study corpus: {document_count:,} documents, " f"{len(corpus_text):,} characters, " f"{len(corpus_text.encode('utf-8')):,} bytes")
+    print("The EOT delimiters are included in compression measurements.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, int | float | str]] = []
+
+    # train_bpe accepts a path so create the exact eligible corpus once and
+    # reuse it for every vocabulary size to keep the comparison controlled.
+    with tempfile.TemporaryDirectory(prefix="vocab-study-") as temporary:
+        corpus_path = Path(temporary) / "study_corpus.txt"
+        corpus_path.write_text(corpus_text, encoding="utf-8", newline="")
+
+        for vocab_size in vocab_sizes:
+            print(f"\nTraining vocabulary size {vocab_size:,}...")
+            row = train_and_measure(corpus_path,corpus_text,document_count,vocab_size,args.d_model,output_dir,)
+            rows.append(row)
+            print_result(row)
+
+    csv_path = output_dir / "vocab_study.csv"
+    plot_path = output_dir / "vocab_compression.svg"
+    save_csv(rows, csv_path)
+    save_svg_plot(rows, plot_path)
+
+    print("\nSaved results:")
+    for path in (csv_path, plot_path):
+        print(f"  {path}")
+
+if __name__ == "__main__":
+    main()
