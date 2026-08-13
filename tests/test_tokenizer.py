@@ -35,4 +35,33 @@ class ByteLevelBPETests(unittest.TestCase):
         vocab, merges = train_bpe(str(corpus_path), vocab_size, [EOT])
         return vocab, merges, BPETokenizer(vocab, merges, [EOT])
 
+    def test_utf8_and_whitespace_round_trip(self):
+        vocab, _, tokenizer = self.train("hello world\nhello world")
+        text = "  Héllø, café!\r\nTabs\tand emoji 🐍" # test for utf8 multi byte coverage
+        self.assertEqual(tokenizer.decode(tokenizer.encode(text)), text)
+        self.assertEqual(vocab[0], b"\x00")
+        self.assertEqual(vocab[255], b"\xff")
+
+    # make sure special token is treated as non mergeable bondary 3./3
+    def test_special_token_is_a_hard_boundary_and_single_id(self):
+        _, merges, tokenizer = self.train(f"abab{EOT}abab", 260)
+        special_id = tokenizer.token_to_id[EOT.encode("utf-8")]
+        ids = tokenizer.encode(f"ab{EOT}ab")
+        self.assertEqual(ids.count(special_id), 1)
+        self.assertEqual(tokenizer.decode(ids), f"ab{EOT}ab")
+        self.assertNotIn((b"b", b"<"), merges)
+        self.assertNotIn((b">", b"a"), merges)
+        self.assertFalse(any(EOT.encode("utf-8") in side for pair in merges for side in pair))
+
+    # tie breakign rule when multiple byte pairs have same frequency 
+    def test_frequency_ties_choose_lexicographically_greatest_pair(self):
+        _, merges, _ = self.train("ab ac", 258)
+        self.assertEqual(merges[0], (b"a", b"c"))
+
+    def test_prefix_decode_replaces_incomplete_utf8(self):
+        # find a emoji or special character for this 
+        _, _, tokenizer = self.train("plain ascii", 257)
+        first_byte_of_emoji = tokenizer.token_to_id[b"\xf0"]
+        self.assertEqual(tokenizer.decode([first_byte_of_emoji]), "�")
+
     
