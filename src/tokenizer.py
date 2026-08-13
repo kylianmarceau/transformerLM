@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from collections import Counter
+import heapq
 from typing import Iterable, Iterator
 
 import regex
@@ -79,6 +80,60 @@ def count_pairs(word_freqs: dict[tuple[bytes, ...], int], ): #CHANGE signature s
             pair_counts[pair] += frequency
     return pair_counts
 
+class PairPriority:
+    # heap entry which places the most frequent, lexicographically greatest pair first
+
+    def __init__(self,pair: tuple[bytes, bytes],count: int,):
+        self.pair = pair
+        self.count = count
+
+    def __lt__(self,other):
+        if self.count != other.count:
+            return self.count > other.count
+
+        return self.pair > other.pair
+
+def update_pair_count(pair_counts: dict[tuple[bytes, bytes], int],pair_heap: list[PairPriority],pair: tuple[bytes, bytes],change: int,):
+    # update one pair count and add its new value to the priority heap
+    new_count = pair_counts.get(pair, 0) + change
+
+    if new_count < 0:
+        raise ValueError(f"Pair count became negative for {pair!r}")
+
+    if new_count == 0:
+        pair_counts.pop(pair, None)
+    else:
+        pair_counts[pair] = new_count
+        heapq.heappush(pair_heap,PairPriority(pair,new_count,),)
+
+def best_pair_from_heap(pair_counts: dict[tuple[bytes, bytes], int],pair_heap: list[PairPriority],):
+    # discard old heap entries until the stored count matches the current count
+    while pair_heap:
+        entry = heapq.heappop(pair_heap)
+
+        if pair_counts.get(entry.pair) == entry.count:
+            return entry.pair
+
+    return None
+
+def build_pair_indexes(words: list[tuple[bytes, ...]],word_freqs: list[int],):
+    # count all pairs once and record which pre-tokens contain them
+    pair_counts: dict[tuple[bytes, bytes], int] = {}
+    pair_to_words: dict[tuple[bytes, bytes], set[int]] = {}
+
+    for word_id, symbols in enumerate(words):
+        local_pair_counts = Counter(zip(symbols, symbols[1:]))
+        frequency = word_freqs[word_id]
+
+        for pair, occurrences in local_pair_counts.items():
+            pair_counts[pair] = pair_counts.get(pair, 0) + occurrences * frequency
+            pair_to_words.setdefault(pair, set()).add(word_id)
+
+    pair_heap = [PairPriority(pair,count,) for pair, count in pair_counts.items()]
+    heapq.heapify(pair_heap)
+
+    return pair_counts, pair_to_words, pair_heap
+
 def merge_word(symbols: tuple[bytes, ...], pair: tuple[bytes, bytes], ): # CHANGE to bytesz
     """
     Replace every occurrence of `pair` in `symbols` with the single merged symbol.
@@ -102,8 +157,93 @@ def merge_word(symbols: tuple[bytes, ...], pair: tuple[bytes, bytes], ): # CHANG
             index += 1
     return tuple(merged)
 
-def train_bpe(input_path: str,vocab_size: int,special_tokens: list[str],):
-    """Train a byte level BPE tokenizer
+# -- 3.2 --
+def merge_pair_incrementally(best_pair: tuple[bytes, bytes],words: list[tuple[bytes, ...]],word_freqs: list[int],pair_counts: dict[tuple[bytes, bytes], int],pair_to_words: dict[tuple[bytes, bytes], set[int]],pair_heap: list[PairPriority],):
+    # update only the pre-tokens which contain the selected pair
+    affected_word_ids = list(pair_to_words.get(best_pair, set()))
+
+    if not affected_word_ids:
+        raise ValueError("Pair index does not match pair counts")
+
+    pair_changes: Counter = Counter()
+
+    for word_id in affected_word_ids:
+        symbols = words[word_id]
+        frequency = word_freqs[word_id]
+
+        # remove the old pair counts for this pre-token
+        old_pair_counts = Counter(zip(symbols, symbols[1:]))
+
+        for pair, occurrences in old_pair_counts.items():
+            pair_changes[pair] -= occurrences * frequency
+            indexed_words = pair_to_words.get(pair)
+
+            if indexed_words is not None:
+                indexed_words.discard(word_id)
+
+                if not indexed_words:
+                    del pair_to_words[pair]
+
+        # apply the merge and add the new pair counts
+        merged_symbols = merge_word(symbols,best_pair,)
+        words[word_id] = merged_symbols
+        new_pair_counts = Counter(zip(merged_symbols, merged_symbols[1:]))
+
+        for pair, occurrences in new_pair_counts.items():
+            pair_changes[pair] += occurrences * frequency
+            pair_to_words.setdefault(pair, set()).add(word_id)
+
+    for pair, change in pair_changes.items():
+        if change:
+            update_pair_count(pair_counts,pair_heap,pair,change,)
+
+def train_bpe_OLD(input_path: str,vocab_size: int,special_tokens: list[str],) -> tuple[dict[int, bytes],list[tuple[bytes, bytes]]]:
+    """Train BPE by recounting every pair after every merge"""
+    special_tokens = validate_special_tokens(special_tokens)
+
+    if vocab_size > 65_536:
+        raise ValueError(
+            "vocab_size must not exceed 65,536 "
+            "when using uint16 token IDs")
+
+    with open(input_path,encoding="utf-8",newline="",) as stream:
+        text = stream.read()
+
+    vocab: dict[int, bytes] = {byte_value: bytes([byte_value])for byte_value in range(256)}
+
+    for special_token in special_tokens:
+        vocab[len(vocab)] = special_token.encode("utf-8")
+
+    number_of_merges = vocab_size - len(vocab)
+
+    if number_of_merges < 0:
+        raise ValueError(f"vocab_size={vocab_size} is too small; "f"{len(vocab)} initial tokens are required")
+
+    word_freqs = dict(count_pretokens(text,special_tokens,))
+    merges: list[tuple[bytes, bytes]] = []
+
+    for _ in range(number_of_merges):
+        pair_counts = count_pairs(word_freqs)
+
+        if not pair_counts:
+            break
+
+        best_pair = max(pair_counts.items(),key=lambda item: (item[1], item[0]),)[0]
+        vocab[len(vocab)] = best_pair[0] + best_pair[1]
+        merges.append(best_pair)
+
+        new_word_freqs: Counter = Counter()
+
+        for symbols, frequency in word_freqs.items():
+            merged_symbols = merge_word(symbols,best_pair,)
+            new_word_freqs[merged_symbols] += frequency
+
+        word_freqs = new_word_freqs
+
+    return vocab, merges
+
+def train_bpe(input_path: str,vocab_size: int,special_tokens: list[str],) -> tuple[dict[int, bytes],list[tuple[bytes, bytes]]]:
+    """Train a byte level BPE tokenizer using incremental pair counting
 
     Returns:
         vocab: token ID -> token bytes
@@ -140,30 +280,33 @@ def train_bpe(input_path: str,vocab_size: int,special_tokens: list[str],):
 
     pretoken_counts = count_pretokens(text,special_tokens,)
 
-    # count_pretokens already returns tuples of bytes.
-    word_freqs = dict(pretoken_counts)
+    # Store pre-tokens by integer ID so they can be updated in place.
+    words = list(pretoken_counts)
+    word_freqs = [pretoken_counts[word] for word in words]
+
+    # Count pairs once, and record which pre-tokens contain each pair.
+    pair_counts, pair_to_words, pair_heap = build_pair_indexes(words,word_freqs,)
+
     merges: list[tuple[bytes, bytes]] = []
 
     for _ in range(number_of_merges):
-        # recount deliberately the slow tutorial implementation, 3.2 maak dit vinnig
-        
-        pair_counts = count_pairs(word_freqs)
-
         if not pair_counts:
             break
 
-        best_pair = max(pair_counts.items(),key=lambda item: (item[1], item[0]),)[0]
+        best_pair = best_pair_from_heap(pair_counts,pair_heap,)
+
+        if best_pair is None:
+            break
 
         vocab[len(vocab)] = (best_pair[0] + best_pair[1])
         merges.append(best_pair)
 
-        new_word_freqs: Counter = Counter()
+        merge_pair_incrementally(best_pair,words,word_freqs,pair_counts,pair_to_words,pair_heap,)
 
-        for symbols, frequency in word_freqs.items():
-            merged_symbols = merge_word(symbols,best_pair,)
-            new_word_freqs[merged_symbols] += frequency
-
-        word_freqs = new_word_freqs
+        # Rebuild occasionally so stale priority entries do not waste memory.
+        if len(pair_heap) > max(1_000, 4 * len(pair_counts)):
+            pair_heap = [PairPriority(pair,count,) for pair, count in pair_counts.items()]
+            heapq.heapify(pair_heap)
 
     return vocab, merges
 
@@ -303,7 +446,7 @@ class BPETokenizer:
 
         return self._cache[pretoken]
 
-    def encode(self, text: str):
+    def encode(self, text: str) -> list[int]:
         # encode text into byte BPE token IDs 
         token_ids: list[int] = []
 
@@ -321,12 +464,12 @@ class BPETokenizer:
 
         return token_ids
 
-    def encode_iterable(self,iterable: Iterable[str],):
+    def encode_iterable(self,iterable: Iterable[str],) -> Iterator[int]:
         
         for chunk in iterable:
             yield from self.encode(chunk)
 
-    def decode(self, ids: list[int]):
+    def decode(self, ids: list[int]) -> str:
         #Decode IDs without crashing out on incomplete UTF 8 
         pieces = []
 
@@ -341,5 +484,3 @@ class BPETokenizer:
         raw_bytes = b"".join(pieces)
 
         return raw_bytes.decode("utf-8",errors="replace",)
-
-    
