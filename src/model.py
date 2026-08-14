@@ -150,7 +150,7 @@ class CausalSelfAttention(nn.Module):
         use_qk_norm: whether to RMSNorm the queries and keys before attention
     """
 
-    def __init__(self, d_model, n_heads, rope, use_qk_norm=True):
+    def __init__(self, d_model, n_heads, rope, use_qk_norm=True, use_rope = True):
         super().__init__()
         assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
         self.n_heads = n_heads
@@ -164,6 +164,7 @@ class CausalSelfAttention(nn.Module):
         self.o_proj = nn.Linear(d_model, d_model, bias=False)
 
         self.rope = rope
+        self.use_rope = use_rope
         self.q_norm = RMSNorm(self.d_head) if use_qk_norm else nn.Identity()
         self.k_norm = RMSNorm(self.d_head) if use_qk_norm else nn.Identity()
 
@@ -184,7 +185,10 @@ class CausalSelfAttention(nn.Module):
 
         # Step 2: QK norm, then RoPE on queries and keys only (never on values)
         q, k = self.q_norm(q), self.k_norm(k)
-        q, k = self.rope(q, positions), self.rope(k, positions)
+        # make RoPe conditional
+        if self.use_rope:
+            q=self.rope(q, positions)
+            k = self.rope(k, positions)
 
         # Step 3: causal mask - query i attends to key j only if j <= i
         mask = positions[None, :] <= positions[:, None]              # (seq_len, seq_len)
@@ -205,10 +209,10 @@ class TransformerBlock(nn.Module):
         use_qk_norm: passed through to the attention module
     """
 
-    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True,):
+    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True,):
         super().__init__()
         self.attn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
-        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm,)
+        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm, use_rope,)
         self.ffn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
         self.ffn = SwiGLU(d_model, d_ff)
 
@@ -266,7 +270,7 @@ class TransformerLM(nn.Module):
         )
 
         self.layers = nn.ModuleList([
-            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm,)
+            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm, config.use_rope,)
             for _ in range(config.n_layers)
         ])
 
