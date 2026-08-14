@@ -222,7 +222,7 @@ class TransformerBlock(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True, ffn_type="swiglu"):
         super().__init__()
         self.attn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
-        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm, use_rope,)
+        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm and use_rmsnorm, use_rope,)
         self.ffn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
         # self.ffn = SwiGLU(d_model, d_ff)
         if ffn_type == "swiglu":
