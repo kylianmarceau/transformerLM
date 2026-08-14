@@ -73,10 +73,6 @@ class ReLUFFN(nn.Module):
     def forward(self, x):
         return self.w2(F.relu(self.w1(x)))
 
-def compute_d_ff(d_model, multiple_of=64):
-    """Round (8/3) * d_model up to the nearest multiple of `multiple_of`."""
-    d_ff = int(8 * d_model / 3)
-    return multiple_of * ((d_ff + multiple_of - 1) // multiple_of)
 
 
 # tutorial cell rpe
