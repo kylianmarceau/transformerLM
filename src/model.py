@@ -61,7 +61,17 @@ class SwiGLU(nn.Module):
         """
         # SiLU(W1 x) is the gate; it multiplies W3 x element-wise; W2 projects back down.
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
+    
+# add reul ffn class 
+class ReLUFFN(nn.Module):
+    def __init__(self, d_model, d_ff):
+        super().__init__()
 
+        self.w1 = nn.Linear(d_model, d_ff, bias=False)
+        self.w2 = nn.Linear(d_ff, d_model, bias=False)
+
+    def forward(self, x):
+        return self.w2(F.relu(self.w1(x)))
 
 def compute_d_ff(d_model, multiple_of=64):
     """Round (8/3) * d_model up to the nearest multiple of `multiple_of`."""
@@ -209,12 +219,18 @@ class TransformerBlock(nn.Module):
         use_qk_norm: passed through to the attention module
     """
 
-    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True,):
+    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True, ffn_type="swiglu"):
         super().__init__()
         self.attn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
         self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm, use_rope,)
         self.ffn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
-        self.ffn = SwiGLU(d_model, d_ff)
+        # self.ffn = SwiGLU(d_model, d_ff)
+        if ffn_type == "swiglu":
+            self.ffn = SwiGLU(d_model, d_ff)
+        elif ffn_type == "relu":
+            self.ffn = ReLUFFN(d_model, 4 * d_model)
+        else:
+            raise ValueError(f"Unknown FFN type: {ffn_type}")
 
     def forward(self, x):
         """
@@ -270,7 +286,7 @@ class TransformerLM(nn.Module):
         )
 
         self.layers = nn.ModuleList([
-            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm, config.use_rope,)
+            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm, config.use_rope, config.ffn_type)
             for _ in range(config.n_layers)
         ])
 
