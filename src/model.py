@@ -205,11 +205,11 @@ class TransformerBlock(nn.Module):
         use_qk_norm: passed through to the attention module
     """
 
-    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True):
+    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True,):
         super().__init__()
-        self.attn_norm = RMSNorm(d_model)
-        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm)
-        self.ffn_norm = RMSNorm(d_model)
+        self.attn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
+        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm,)
+        self.ffn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
         self.ffn = SwiGLU(d_model, d_ff)
 
     def forward(self, x):
@@ -226,17 +226,23 @@ class TransformerBlock(nn.Module):
         return x
 
 # cell from tutorial
+# update from skeleton for 4.1 updating the config 
 @dataclass
 class TransformerConfig:
-    vocab_size: int = 1500
+    vocab_size: int = 4000 # choice from 3.4
     context_length: int = 256      # maximum sequence length
     n_layers: int = 4
-    d_model: int = 256
+    d_model: int = 512
     n_heads: int = 8
-    d_ff: int = 704                # ~ (8/3) * d_model, rounded to a multiple of 64
+    d_ff: int = 1344                # ~ (8/3) * d_model, rounded to a multiple of 64
     rope_theta: float = 10000.0
-    use_qk_norm: bool = True        
+    use_qk_norm: bool = True    
 
+    # additional config options for 4.1:
+    use_rmsnorm: bool=True
+    use_rope: bool=True
+    ffn_type: str = "swiglu"
+    
 # full transformer lm fromt he tutorial
 class TransformerLM(nn.Module):
     """
@@ -260,12 +266,11 @@ class TransformerLM(nn.Module):
         )
 
         self.layers = nn.ModuleList([
-            TransformerBlock(config.d_model, config.n_heads, config.d_ff,
-                             self.rope, config.use_qk_norm)
+            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm,)
             for _ in range(config.n_layers)
         ])
 
-        self.final_norm = RMSNorm(config.d_model)
+        self.final_norm = RMSNorm(config.d_model) if config.use_rmsnorm else nn.Identity()
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
 
         self.apply(self._init_weights)
