@@ -156,11 +156,12 @@ class CausalSelfAttention(nn.Module):
         use_qk_norm: whether to RMSNorm the queries and keys before attention
     """
 
-    def __init__(self, d_model, n_heads, rope, use_qk_norm=True, use_rope = True):
+    def __init__(self, d_model, n_heads, context_length, rope, use_qk_norm=True, use_rope = True):
         super().__init__()
         assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
         self.n_heads = n_heads
         self.d_head = d_model // n_heads          # d_q = d_k = d_v = d_model / n_heads
+        self.context_length = context_length
 
         # One full-width projection each; the heads are carved out by reshaping.
         # No bias terms, following modern LLMs.
@@ -173,36 +174,80 @@ class CausalSelfAttention(nn.Module):
         self.use_rope = use_rope
         self.q_norm = RMSNorm(self.d_head) if use_qk_norm else nn.Identity()
         self.k_norm = RMSNorm(self.d_head) if use_qk_norm else nn.Identity()
+        # 4.2 cache addition
+        self.register_buffer("k_cache", None, persistent=False)
+        self.register_buffer("v_cache", None, persistent=False)
+        self.cache_len = 0
 
-    def forward(self, x):
-        """
-        params:
-            x: (batch, seq_len, d_model)
-        returns:
-            (batch, seq_len, d_model)
-        """
+    def reset_cache(self):
+        self.k_cache = None
+        self.v_cache = None
+        self.cache_len = 0
+
+    def _create_cache(self, batch_size, device, dtype):
+        cache_shape = (batch_size,self.n_heads,self.context_length,self.d_head,)
+        self.k_cache = torch.empty(cache_shape,device=device,dtype=dtype,)
+        self.v_cache = torch.empty(cache_shape,device=device,dtype=dtype,)
+
+    def forward(self, x, use_cache=False):
         batch, seq_len, _ = x.shape
-        positions = torch.arange(seq_len, device=x.device)
 
-        # Step 1: project, then split into heads -> (batch, n_heads, seq_len, d_head)
-        q = self.q_proj(x).view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
-        k = self.k_proj(x).view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
-        v = self.v_proj(x).view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
+        if use_cache and torch.is_grad_enabled():
+            raise RuntimeError("Use torch.no_grad() when using the KV cache")
 
-        # Step 2: QK norm, then RoPE on queries and keys only (never on values)
-        q, k = self.q_norm(q), self.k_norm(k)
-        # make RoPe conditional
+        start_pos = self.cache_len if use_cache else 0
+        end_pos = start_pos + seq_len
+
+        if end_pos > self.context_length:
+            raise ValueError(f"Sequence length {end_pos} exceeds "f"context length {self.context_length}")
+
+        positions = torch.arange(start_pos, end_pos, device=x.device,)
+
+        q = self.q_proj(x)
+        k = self.k_proj(x)
+        v = self.v_proj(x)
+
+        q = q.view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
+        k = k.view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
+        v = v.view(batch, seq_len, self.n_heads, self.d_head).transpose(1, 2)
+
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+
         if self.use_rope:
-            q=self.rope(q, positions)
+            q = self.rope(q, positions)
             k = self.rope(k, positions)
 
-        # Step 3: causal mask - query i attends to key j only if j <= i
-        mask = positions[None, :] <= positions[:, None]              # (seq_len, seq_len)
+        if use_cache:
+            if self.k_cache is None:
+                self._create_cache(batch,x.device,k.dtype,)
 
-        out = scaled_dot_product_attention(q, k, v, mask)            # (b, n_heads, seq_len, d_head)
+            if self.k_cache.size(0) != batch:
+                raise ValueError("Batch size changed. Reset the cache first.")
 
-        # Step 4: concatenate the heads and project back to the residual stream
-        out = out.transpose(1, 2).contiguous().view(batch, seq_len, -1)
+            self.k_cache[:, :, start_pos:end_pos].copy_(k)
+            self.v_cache[:, :, start_pos:end_pos].copy_(v)
+
+            keys = self.k_cache[:, :, :end_pos]
+            values = self.v_cache[:, :, :end_pos]
+
+            if seq_len == 1:
+                mask = None
+            else:
+                key_positions = torch.arange(end_pos,device=x.device,)
+                mask = (key_positions[None, :]<= positions[:, None])
+
+            self.cache_len = end_pos
+        else:
+            keys = k
+            values = v
+            mask = positions[None, :] <= positions[:, None]
+
+        out = scaled_dot_product_attention(q,keys,values,mask,)
+
+        out = out.transpose(1, 2).contiguous()
+        out = out.view(batch, seq_len, -1)
+
         return self.o_proj(out)
 
 # trnasformer block from the tutorial
@@ -215,10 +260,10 @@ class TransformerBlock(nn.Module):
         use_qk_norm: passed through to the attention module
     """
 
-    def __init__(self, d_model, n_heads, d_ff, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True, ffn_type="swiglu"):
+    def __init__(self, d_model, n_heads, d_ff, context_length, rope, use_qk_norm=True, use_rmsnorm=True, use_rope=True, ffn_type="swiglu"):
         super().__init__()
         self.attn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
-        self.attn = CausalSelfAttention(d_model, n_heads, rope, use_qk_norm and use_rmsnorm, use_rope,)
+        self.attn = CausalSelfAttention(d_model=d_model, n_heads=n_heads, context_length=context_length, rope=rope, use_qk_norm=use_qk_norm and use_rmsnorm, use_rope=use_rope,)
         self.ffn_norm = RMSNorm(d_model) if use_rmsnorm else nn.Identity()
         # self.ffn = SwiGLU(d_model, d_ff)
         if ffn_type == "swiglu":
@@ -228,16 +273,8 @@ class TransformerBlock(nn.Module):
         else:
             raise ValueError(f"Unknown FFN type: {ffn_type}")
 
-    def forward(self, x):
-        """
-        params:
-            x: (batch, seq_len, d_model)
-        returns:
-            (batch, seq_len, d_model)
-        """
-        # Sub-layer 1: normalise, attend, add the residual.
-        x = x + self.attn(self.attn_norm(x))
-        # Sub-layer 2: normalise, feed-forward, add the residual.
+    def forward(self, x, use_cache=False):
+        x = x + self.attn(self.attn_norm(x),use_cache=use_cache,)
         x = x + self.ffn(self.ffn_norm(x))
         return x
 
@@ -282,7 +319,7 @@ class TransformerLM(nn.Module):
         )
 
         self.layers = nn.ModuleList([
-            TransformerBlock(config.d_model, config.n_heads, config.d_ff,self.rope, config.use_qk_norm, config.use_rmsnorm, config.use_rope, config.ffn_type)
+            TransformerBlock(d_model=config.d_model,n_heads=config.n_heads,d_ff=config.d_ff,context_length=config.context_length,rope=self.rope,use_qk_norm=config.use_qk_norm,use_rmsnorm=config.use_rmsnorm,use_rope=config.use_rope,ffn_type=config.ffn_type,)
             for _ in range(config.n_layers)
         ])
 
@@ -299,22 +336,27 @@ class TransformerLM(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.trunc_normal_(module.weight, std=1.0, a=-3.0, b=3.0)
 
-    def forward(self, token_ids):
-        """
-        params:
-            token_ids: (batch, seq_len) integer token IDs
-        returns:
-            logits: (batch, seq_len, vocab_size)
-        """
-        # Step 1: embed the token IDs. No positional embedding - RoPE handles position.
-        x = self.token_embeddings(token_ids)              # (batch, seq_len, d_model)
+    def forward(self, token_ids, use_cache=False):
+        if token_ids.ndim != 2:
+            raise ValueError("token_ids must have shape (batch, seq_len)")
 
-        # Step 2: run the stack of pre-norm blocks
+        x = self.token_embeddings(token_ids)
+
         for layer in self.layers:
-            x = layer(x)                                  # (batch, seq_len, d_model)
+            x = layer(x, use_cache=use_cache)
 
-        # Step 3: final norm, then project to vocabulary logits
-        return self.lm_head(self.final_norm(x))           # (batch, seq_len, vocab_size)
+        return self.lm_head(self.final_norm(x))
+
+    def reset_cache(self):
+        for layer in self.layers:
+            layer.attn.reset_cache()
+
+    @property
+    def cache_length(self):
+        if not self.layers:
+            return 0
+
+        return self.layers[0].attn.cache_len
 
     def num_parameters(self, non_embedding=False):
         """Total parameter count; optionally excluding the embedding and LM head."""
