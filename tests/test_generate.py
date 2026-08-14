@@ -9,37 +9,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.generate import sample_next_token
 
-
 class SamplingTests(unittest.TestCase):
     def test_temperature_zero_is_greedy(self):
         logits = torch.tensor([[1.0, 5.0, 2.0]])
-
-        token = sample_next_token(
-            logits,
-            temperature=0,
-        )
-
+        token = sample_next_token(logits,temperature=0,)
         self.assertEqual(token.item(), 1)
 
     def test_top_k_one_keeps_only_the_best_token(self):
         logits = torch.tensor([[1.0, 5.0, 2.0]])
-
-        token = sample_next_token(
-            logits,
-            temperature=1.0,
-            top_k=1,
-        )
-
+        token = sample_next_token(logits,temperature=1.0,top_k=1,)
         self.assertEqual(token.item(), 1)
 
     def test_top_p_always_keeps_one_token(self):
         logits = torch.tensor([[10.0, 1.0, 0.0]])
 
-        token = sample_next_token(
-            logits,
-            temperature=1.0,
-            top_p=0.0,
-        )
+        token = sample_next_token(logits,temperature=1.0,top_p=0.0,)
 
         self.assertEqual(token.item(), 0)
 
@@ -51,16 +35,8 @@ class SamplingTests(unittest.TestCase):
 
         second_generator = torch.Generator()
         second_generator.manual_seed(3043)
-
-        first = sample_next_token(
-            logits,
-            generator=first_generator,
-        )
-
-        second = sample_next_token(
-            logits,
-            generator=second_generator,
-        )
+        first = sample_next_token(logits,generator=first_generator,)
+        second = sample_next_token(logits,generator=second_generator,)
 
         self.assertTrue(torch.equal(first, second))
 
