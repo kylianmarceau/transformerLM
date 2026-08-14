@@ -1,0 +1,82 @@
+{
+  "section": "3.5",
+  "main_vocab_size": 4000,
+  "comparison_vocab_sizes": [
+    1000
+  ],
+  "special_tokens": [
+    "<|endoftext|>"
+  ],
+  "train_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/TinyStoriesV2-GPT4-train.txt",
+  "validation_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/TinyStoriesV2-GPT4-valid.txt",
+  "machine": {
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "numpy": "2.5.1"
+  },
+  "tokenizer_training": {
+    "reused_existing": false,
+    "training_seconds": 545.2007186250121,
+    "trained_maximum_vocab_size": 4000,
+    "artifacts": {
+      "4000": {
+        "vocab_path": "/Users/kylianmarceau/Documents/AI/assignment1/tokenizers/vocab_4000/vocab.tsv",
+        "merges_path": "/Users/kylianmarceau/Documents/AI/assignment1/tokenizers/vocab_4000/merges.tsv",
+        "vocab_sha256": "5173d0585e56bed8a9bb1ffe87e2083e7e67ddecc87e26ed87f75e07e987e840",
+        "merges_sha256": "abada25e41cffcdcb77ca86a4186d7736976778eae56786ce12d3ed2a5a5eaba"
+      },
+      "1000": {
+        "vocab_path": "/Users/kylianmarceau/Documents/AI/assignment1/tokenizers/vocab_1000/vocab.tsv",
+        "merges_path": "/Users/kylianmarceau/Documents/AI/assignment1/tokenizers/vocab_1000/merges.tsv",
+        "vocab_sha256": "583c0cd73d2d3307644fd5052268da3bb33d037c9f6bce9bff5faa5b9ed1a040",
+        "merges_sha256": "f1f31bf2482b4c6f8755e72fc0df49c473756a64d247da34c0d546c559950b2e"
+      }
+    }
+  },
+  "encodings": {
+    "train_vocab_4000": {
+      "output_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/encoded/train_vocab_4000.npy",
+      "token_count": 559840775,
+      "minimum_token_id": 9,
+      "maximum_token_id": 3999,
+      "encoding_seconds": 585.0756897910032,
+      "reused_existing": false,
+      "dtype": "uint16",
+      "input_bytes": 2227753162,
+      "output_bytes": 1119681678
+    },
+    "valid_vocab_4000": {
+      "output_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/encoded/valid_vocab_4000.npy",
+      "token_count": 5652645,
+      "minimum_token_id": 10,
+      "maximum_token_id": 3999,
+      "encoding_seconds": 5.785743166998145,
+      "reused_existing": false,
+      "dtype": "uint16",
+      "input_bytes": 22502601,
+      "output_bytes": 11305418
+    },
+    "train_vocab_1000": {
+      "output_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/encoded/train_vocab_1000.npy",
+      "token_count": 703090431,
+      "minimum_token_id": 9,
+      "maximum_token_id": 999,
+      "encoding_seconds": 598.0068023750064,
+      "reused_existing": false,
+      "dtype": "uint16",
+      "input_bytes": 2227753162,
+      "output_bytes": 1406180990
+    },
+    "valid_vocab_1000": {
+      "output_path": "/Users/kylianmarceau/Documents/AI/assignment1/datasets/encoded/valid_vocab_1000.npy",
+      "token_count": 7096737,
+      "minimum_token_id": 10,
+      "maximum_token_id": 999,
+      "encoding_seconds": 6.585378375006258,
+      "reused_existing": false,
+      "dtype": "uint16",
+      "input_bytes": 22502601,
+      "output_bytes": 14193602
+    }
+  }
+}
