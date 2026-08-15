@@ -11,7 +11,7 @@ import torch
 class MemoryMappedTokenData:
     """Sample batches from a one-dimensional memory-mapped uint16 array."""
 
-    def __init__(self, path: str | Path):
+    def __init__(self,path: str | Path,reserved_trailing_documents: int = 0,document_separator_token_id: int = 256,):
         self.path = Path(path)
 
         if not self.path.is_file():
@@ -26,6 +26,38 @@ class MemoryMappedTokenData:
         if self.tokens.dtype != np.uint16:
             raise ValueError("Encoded token arrays must use uint16")
 
+        if reserved_trailing_documents < 0:
+            raise ValueError("reserved_trailing_documents cannot be negative")
+
+        if not 0 <= document_separator_token_id <= np.iinfo(np.uint16).max:
+            raise ValueError("document_separator_token_id must fit in uint16")
+
+        self.sampling_token_count = len(self.tokens)
+
+        if reserved_trailing_documents:
+            self.sampling_token_count = self._token_count_before_reserved_documents(reserved_trailing_documents,document_separator_token_id,)
+
+    def _token_count_before_reserved_documents(self,reserved_documents: int,document_separator_token_id: int,):
+        #Return the exclusive token boundary before the reserved document tail
+
+        separators_still_needed = reserved_documents
+        chunk_end = len(self.tokens)
+        chunk_size = 1_000_000
+
+        # Search backwards in bounded chunks so finding the split does not copythe complete memory-mapped corpus into RAM.
+        while chunk_end > 0:
+            chunk_start = max(0, chunk_end - chunk_size)
+            separator_offsets = np.flatnonzero(self.tokens[chunk_start:chunk_end] == document_separator_token_id)
+
+            if len(separator_offsets) >= separators_still_needed:
+                boundary_separator = separator_offsets[-separators_still_needed]
+                return chunk_start + int(boundary_separator) + 1
+
+            separators_still_needed -= len(separator_offsets)
+            chunk_end = chunk_start
+
+        raise ValueError("reserved_trailing_documents must be smaller than the number " "of encoded documents")
+
     def sample_starts(self,batch_size: int,context_length: int,generator: torch.Generator,):
         #choose the starting token for each sequence in a batch
 
@@ -35,7 +67,7 @@ class MemoryMappedTokenData:
         if context_length <= 0:
             raise ValueError("context_length must be positive")
 
-        maximum_start = len(self.tokens) - context_length
+        maximum_start = self.sampling_token_count - context_length
 
         if maximum_start <= 0:
             raise ValueError("The token array is too short for the requested context length")
