@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import torch 
+from contextlib import nullcontext
 
 def build_optimizer(model, learning_rate: float, weight_decay: float = 0.1):
     """build the adam optimzer for 5.1"""
@@ -65,3 +66,12 @@ def clip_gradients(model, max_norm: float = 1.0):
         raise ValueError("max_norm must be positive")
 
     return torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
+
+def mixed_precision_context(device):
+    # use bf16 autocast on cuda and fp32 on anythign else 
+    device = torch.device(device)
+
+    if device.type=="cuda":
+        return torch.autocast(device_type="cuda", dtype=torch.bfloat16,)
+
+    return nullcontext()
