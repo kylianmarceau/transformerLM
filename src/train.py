@@ -58,3 +58,10 @@ def build_scheduler(optimizer,warmup_steps: int,total_steps: int,minimum_lr_rati
         cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
         return minimum_lr_ratio + (1.0 - minimum_lr_ratio) * cosine
     return torch.optim.lr_scheduler.LambdaLR(optimizer,lr_lambda=learning_rate_multiplier,)
+
+def clip_gradients(model, max_norm: float = 1.0):
+    """clip gradients and return their total norm before clipping"""
+    if max_norm <= 0:
+        raise ValueError("max_norm must be positive")
+
+    return torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_norm)
