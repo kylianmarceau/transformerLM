@@ -1,4 +1,4 @@
-"""Generate training curves from run logs."""
+"""Generate training curves from run logs"""
 
 from __future__ import annotations
 
@@ -13,12 +13,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
 METRIC_LABELS = {"train_loss": "Training loss (nats)","validation_loss": "Validation loss (nats)","learning_rate": "Learning rate","pre_clip_gradient_norm": "Pre-clipping gradient norm",}
 
 X_AXIS_LABELS = {"step": "Optimizer step","tokens_processed": "Tokens processed","wall_clock_seconds": "Wall-clock time (seconds)",}
 
-def load_jsonl(path: Path) -> list[dict[str, object]]:
+def load_jsonl(path: Path):
     # load a training log and validate its step ordering
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -116,7 +115,6 @@ def parse_args(argv: list[str] | None = None):
 def main():
     args = parse_args()
     plot_logs(log_paths=args.logs,output_path=args.output,metric=args.metric,x_axis=args.x_axis,labels=args.labels,title=args.title,)
-
 
 if __name__ == "__main__":
     main()
