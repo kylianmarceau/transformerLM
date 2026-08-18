@@ -5,3 +5,15 @@
 __pycache__/
 
 .ipynb_checkpoints/
+
+afrilink_training_data.tar.gz
+
+/afrilink_upload_original_10mb/
+
+/afrilink_upload_vocab1000_10mb/
+
+afrilink_vocab1000.tar.gz
+
+*.pt
+*.pth
+afrilink_results/**/checkpoints/
