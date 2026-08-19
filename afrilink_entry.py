@@ -27,8 +27,15 @@ with tarfile.open(combined_archive, "r:gz") as archive:
     archive.extractall(input_dir)
 
 train_script = input_dir / "src" / "train.py"
-train_data = input_dir / "datasets" / "encoded" / "train_vocab_4000.npy"
-validation_data = input_dir / "datasets" / "encoded" / "valid_vocab_4000.npy"
+# update for 7.3  to use the different 1000 dataset
+try:
+    vocab_argument = sys.argv.index("--vocab-size")
+    vocab_size = int(sys.argv[vocab_argument + 1])
+except (ValueError, IndexError):
+    raise RuntimeError("A valid --vocab-size argument is required.")
+
+train_data = (input_dir / "datasets" / "encoded" / f"train_vocab_{vocab_size}.npy")
+validation_data = (input_dir / "datasets" / "encoded" / f"valid_vocab_{vocab_size}.npy")
 
 for required_file in (train_script, train_data, validation_data):
     if not required_file.exists():
@@ -61,7 +68,7 @@ if not torch.cuda.is_bf16_supported():
 # afriLink adds --data for the entry script train py donest
 while "--data" in sys.argv:
     argument_index = sys.argv.index("--data")
-    del sys.argv[argument_index : argument_index + 2]
+    del sys.argv[argument_index :argument_index + 2]
 
 print(f"Training arguments: {sys.argv[1:]}", flush=True)
 sys.path.insert(0, str(input_dir))
