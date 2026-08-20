@@ -94,6 +94,7 @@ def plot_logs(log_paths: list[Path],output_path: Path,metric: str = "validation_
     axes.set_xlabel(X_AXIS_LABELS[x_axis])
     axes.set_ylabel(METRIC_LABELS[metric])
     axes.set_title(title or METRIC_LABELS[metric])
+    axes.set_yscale("log")
     axes.grid(True, alpha=0.25)
     axes.legend()
     figure.tight_layout()
