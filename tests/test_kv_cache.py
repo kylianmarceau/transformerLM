@@ -68,7 +68,13 @@ class KVCacheTests(unittest.TestCase):
         cached_logits = torch.stack(cached_logits)
 
         maximum_difference = (uncached_logits - cached_logits).abs().max().item()
-        self.assertTrue(torch.equal(cached_tokens, uncached_tokens))
+
+        generations_identical = torch.equal(cached_tokens,uncached_tokens,)
+
+        print("\nMaximum absolute logit difference:", maximum_difference)
+        print("Greedy generations identical:", generations_identical)
+
+        self.assertTrue(generations_identical)
         self.assertLess(maximum_difference, 1e-4)
 
 
