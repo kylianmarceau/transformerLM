@@ -1,0 +1,41 @@
+Note: the model context length is 256 tokens and the prompt uses 6 tokens, so the implementation can generate at most 250 new tokens.
+
+Q19 SAMPLE 1: Top-p sampling
+Prompt: 'Once upon a time, '
+Temperature: 0.8
+Top-k: None
+Top-p: 0.9
+Seed: 3043
+Maximum new tokens requested: 256
+
+Once upon a time, Quicky found a big, shiny rock. She picked it up and said, "Wow, this is a nice rock. I want to show my friend, Rock." Quicky felt guilty because she did not know the rock could do something special.
+Snowy took the rock to her friend, Bunny. Bunny looked at the rock and said, "Oh no, you dropped the rock. We need to return it to the rock." Quicky was sad, but she knew Bunny was right. So, they went to find the rock together.
+When they found the rock, they found a little, shiny rock. The rock said, "I was under the rock, but I dropped it too. It was so shiny and pretty!" Bunny and Bunny were happy to find the rock, and they all played together. They knew they would always remember the day they found the rock and the shiny rock.
+<|endoftext|>
+
+--------------------------------------------------------------------------------
+
+Q19 SAMPLE 2: Top-k sampling
+Prompt: 'Once upon a time, '
+Temperature: 0.8
+Top-k: 40
+Top-p: None
+Seed: 3043
+Maximum new tokens requested: 256
+
+Once upon a time, Quicky found a big, shiny rock. She did not know where it came from, but she did not know. She touched it with her paw, and it started to roll away. Quicky chased after it, but she could not.
+He ran and ran until he saw a big, shiny rock. He picked it up and looked at it. It was a special rock, because it had a special value inside. He decided to keep it and show it off to his friends later. 
+When Quicky and his friends started to play with the rock. They took turns rolling it out and throwing it. Everyone was happy and they all had a fun day.
+<|endoftext|>
+
+--------------------------------------------------------------------------------
+
+Q19 SAMPLE 3: Greedy decoding
+Prompt: 'Once upon a time, '
+Temperature: 0.0
+Top-k: None
+Top-p: None
+Seed: 3043
+Maximum new tokens requested: 256
+
+Once upon a time, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday, Yesterday
