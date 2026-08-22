@@ -77,19 +77,12 @@ python generate_q19.py
   
 Do not rerun the held-out test set. The one-time Q18 result is saved in "afrilink_results/final/final_vocab4000_20000/test_metrics.json".
 
-python scripts/benchmark_bpe.py
-python scripts/benchmark_generation.py --device cpu
-python scripts/evaluate_position_loss.py
-python scripts/make_report_plots.py
-python scripts/build_report_metrics.py
 
 ## Report figure sources
 
 | Figure | Source data | Producing script |
 |---|---|---|
 | Figure 1: vocabulary compression | "results/vocab_study/vocab_study.csv" | "scripts/vocab_study.py" |
-| Figure 2: KV-cache throughput | "results/q7_generation_throughput.json" | "scripts/benchmark_generation.py" |
-| Figure 3: learning-rate sweep | "afrilink_results/lr_sweep/*/*.jsonl" | "scripts/make_report_plots.py" |
-| Figure 4: RMSNorm ablation | Baseline and no-RMSNorm JSONL logs | "scripts/make_report_plots.py" |
-| Figure 5: NoPE versus RoPE | Baseline and "nope_5000" JSONL logs | "scripts/make_report_plots.py" |
-| Figure 6: position-wise loss | "results/q17_position_losses.json" | "scripts/evaluate_position_loss.py" and "scripts/make_report_plots.py" |
+| Figure 3: learning-rate sweep | "afrilink_results/lr_sweep/*/*.jsonl" | "scripts/make_plots.py" |
+| Figure 4: RMSNorm ablation | Baseline and no-RMSNorm JSONL logs | "scripts/make_plots.py" |
+| Figure 5: NoPE versus RoPE | Baseline and "nope_5000" JSONL logs | "scripts/make_plots.py" |
